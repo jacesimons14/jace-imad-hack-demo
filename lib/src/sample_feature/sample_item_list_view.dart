@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../settings/settings_view.dart';
+import '../camera/camera_view.dart';
 import 'sample_item.dart';
 import 'sample_item_details_view.dart';
 
@@ -21,6 +22,13 @@ class SampleItemListView extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Sample Items'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.camera_alt),
+            onPressed: () {
+              // Navigate to the camera page for AR functionality
+              Navigator.restorablePushNamed(context, CameraView.routeName);
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
