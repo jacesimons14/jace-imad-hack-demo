@@ -37,7 +37,7 @@ class CameraService {
       final camera = _cameras!.first;
       _controller = CameraController(
         camera,
-        ResolutionPreset.medium,
+        ResolutionPreset.high, // Use higher resolution for better natural quality
         enableAudio: false, // Disable audio for AR applications
       );
 
@@ -75,7 +75,7 @@ class CameraService {
       // Initialize new controller
       _controller = CameraController(
         nextCamera,
-        ResolutionPreset.medium,
+        ResolutionPreset.high, // Use higher resolution for better natural quality
         enableAudio: false,
       );
 

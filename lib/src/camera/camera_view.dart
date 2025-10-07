@@ -134,12 +134,17 @@ class _CameraViewState extends State<CameraView> {
     }
 
     final cameraController = widget.controller.cameraController!;
-    return Positioned.fill(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: cameraController.value.previewSize?.height ?? 1,
-          height: cameraController.value.previewSize?.width ?? 1,
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(32),
+        width: 640, // Fixed width for camera preview
+        height: 480, // Fixed height for camera preview
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300, width: 2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
           child: camera.CameraPreview(cameraController),
         ),
       ),
