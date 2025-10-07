@@ -172,6 +172,62 @@ class _CameraViewState extends State<CameraView> {
             ),
           ),
           const SizedBox(height: 8),
+          
+          // Frame processing toggle
+          if (widget.controller.isInitialized)
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: Icon(
+                  widget.controller.isFrameProcessingEnabled
+                      ? Icons.visibility
+                      : Icons.visibility_off,
+                  color: widget.controller.isFrameProcessingEnabled
+                      ? Colors.green
+                      : Colors.white,
+                ),
+                onPressed: () {
+                  widget.controller.setFrameProcessingEnabled(
+                    !widget.controller.isFrameProcessingEnabled,
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 8),
+          
+          // Performance metrics
+          if (widget.controller.isInitialized && widget.controller.isFrameProcessingEnabled)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'FPS: ${widget.controller.currentPerformanceMetrics.estimatedFps.toStringAsFixed(1)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                    ),
+                  ),
+                  Text(
+                    'Efficiency: ${widget.controller.currentPerformanceMetrics.processingEfficiency.toStringAsFixed(0)}%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 8),
+          
           // Camera info
           if (widget.controller.isInitialized)
             Container(
