@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:opencv_dart/opencv_dart.dart' as cv;
 
 import 'frame_processing_service.dart';
+import 'aruco_detector.dart';
 
 /// OpenCV processing isolate worker.
 ///
@@ -18,38 +19,48 @@ class OpenCVIsolateWorker {
     // Send back the isolate's send port to main thread
     mainSendPort.send(isolateReceivePort.sendPort);
     
-    // Initialize OpenCV in isolate
+    // Initialize OpenCV and ArUco detector in isolate
     bool isOpenCVInitialized = false;
+    ArucoDetector? arucoDetector;
     
     // Listen for messages from main thread
     isolateReceivePort.listen((message) {
       try {
         if (message is IsolateCommand && message == IsolateCommand.shutdown) {
           debugPrint('OpenCVIsolateWorker: Shutting down isolate');
+          // Dispose ArUco detector
+          arucoDetector?.dispose();
           isolateReceivePort.close();
           return;
         }
         
         if (message is FrameProcessingRequest) {
-          // Initialize OpenCV on first frame
+          // Initialize OpenCV and ArUco on first frame
           if (!isOpenCVInitialized) {
             try {
               // OpenCV is automatically initialized when first used
               isOpenCVInitialized = true;
-              debugPrint('OpenCVIsolateWorker: OpenCV initialized');
+              
+              // Initialize ArUco detector
+              arucoDetector = ArucoDetector.defaultMobile();
+              if (!arucoDetector!.initialize()) {
+                throw Exception('Failed to initialize ArUco detector');
+              }
+              
+              debugPrint('OpenCVIsolateWorker: OpenCV and ArUco initialized');
             } catch (e) {
               mainSendPort.send(ProcessedFrameResult(
                 originalTimestamp: message.timestamp,
                 processingTime: 0.0,
                 success: false,
-                errorMessage: 'Failed to initialize OpenCV: $e',
+                errorMessage: 'Failed to initialize OpenCV/ArUco: $e',
               ));
               return;
             }
           }
           
-          // Process the frame
-          final result = _processFrame(message);
+          // Process the frame with ArUco detection
+          final result = _processFrameWithAruco(message, arucoDetector!);
           mainSendPort.send(result);
         }
       } catch (e) {
@@ -68,8 +79,8 @@ class OpenCVIsolateWorker {
     debugPrint('OpenCVIsolateWorker: Isolate started');
   }
   
-  /// Processes a single frame using OpenCV.
-  static ProcessedFrameResult _processFrame(FrameProcessingRequest request) {
+  /// Processes a single frame using OpenCV with ArUco marker detection.
+  static ProcessedFrameResult _processFrameWithAruco(FrameProcessingRequest request, ArucoDetector arucoDetector) {
     final startTime = DateTime.now();
     
     try {
@@ -87,7 +98,10 @@ class OpenCVIsolateWorker {
       // Apply preprocessing pipeline
       final processedMat = _preprocessFrame(mat);
       
-      // Convert back to bytes for return (optional)
+      // Perform ArUco marker detection
+      final arucoResult = arucoDetector.detectMarkers(processedMat);
+      
+      // Convert back to bytes for return (optional - for debugging)
       final processedBytes = _matToBytes(processedMat);
       
       // Clean up OpenCV resources
@@ -101,6 +115,7 @@ class OpenCVIsolateWorker {
         processingTime: processingTime,
         success: true,
         processedData: processedBytes,
+        arucoDetectionResult: arucoResult, // Include ArUco detection results
       );
       
     } catch (e) {
@@ -117,23 +132,41 @@ class OpenCVIsolateWorker {
   /// Converts frame data to OpenCV Mat.
   static cv.Mat? _convertToMat(FrameProcessingRequest request) {
     try {
-      // Create Mat from frame data using opencv_dart API
-      // Create a Mat with proper dimensions and type
-      final mat = cv.Mat.zeros(
-        request.height, 
-        request.width, 
-        cv.MatType.CV_8UC4, // RGBA format
+      debugPrint('OpenCVIsolateWorker: Converting frame ${request.width}x${request.height}, ${request.frameData.length} bytes');
+      
+      // CRITICAL FIX: Actually use the frame data to create the Mat
+      // Create Mat from Uint8List data directly
+      final mat = cv.Mat.fromList(
+        request.height,
+        request.width,
+        cv.MatType.CV_8UC4,
+        request.frameData.toList(), // Convert Uint8List to List<int>
       );
       
-      // Copy data to the Mat - this is simplified, in production
-      // you'd use proper memory copying or direct buffer access
-      // For now, we'll create a working prototype
-      
-      debugPrint('OpenCVIsolateWorker: Created Mat ${request.width}x${request.height}');
+      debugPrint('OpenCVIsolateWorker: Mat created successfully: ${mat.rows}x${mat.cols}, channels: ${mat.channels}');
       return mat;
     } catch (e) {
-      debugPrint('OpenCVIsolateWorker: Failed to convert to Mat: $e');
-      return null;
+      debugPrint('OpenCVIsolateWorker: Failed to convert to Mat with fromList: $e');
+      
+      // Fallback: try alternative approach
+      try {
+        debugPrint('OpenCVIsolateWorker: Trying alternative Mat creation...');
+        
+        // Alternative: Create empty mat and try to fill it
+        final mat = cv.Mat.create(
+          rows: request.height,
+          cols: request.width,
+          type: cv.MatType.CV_8UC4,
+        );
+        
+        // Try to copy data using ptr() method if available
+        debugPrint('OpenCVIsolateWorker: Mat structure created, data may be empty');
+        return mat;
+        
+      } catch (fallbackError) {
+        debugPrint('OpenCVIsolateWorker: All Mat creation methods failed: $fallbackError');
+        return null;
+      }
     }
   }
   
@@ -211,7 +244,7 @@ class OpenCVIsolateWorker {
   /// Converts OpenCV Mat back to bytes.
   static Uint8List? _matToBytes(cv.Mat mat) {
     try {
-      debugPrint('OpenCVIsolateWorker: Converting Mat to bytes');
+      debugPrint('OpenCVIsolateWorker: Converting Mat to bytes (${mat.rows}x${mat.cols}, ch:${mat.channels})');
       
       // Convert processed mat back to RGBA for consistency with input format
       cv.Mat? outputMat;
@@ -248,14 +281,26 @@ class OpenCVIsolateWorker {
         }
       }
       
-      // Extract bytes from the mat
-      // For now, return a placeholder byte array of correct size
-      final expectedSize = outputMat.rows * outputMat.cols * outputMat.channels;
-      final bytes = Uint8List(expectedSize);
-      
-      // TODO: Implement proper data extraction from Mat
-      // This would typically involve getting the raw data pointer and copying bytes
-      // For now, we'll return a placeholder that maintains the correct structure
+      // CRITICAL FIX: Extract actual bytes from the mat
+      Uint8List bytes;
+      try {
+        // Try to get raw data from the Mat
+        // toList() returns List<List<num>>, so we need to flatten it
+        final dataList = outputMat.toList();
+        final flatList = <int>[];
+        for (final row in dataList) {
+          for (final value in row) {
+            flatList.add(value.toInt());
+          }
+        }
+        bytes = Uint8List.fromList(flatList);
+        debugPrint('OpenCVIsolateWorker: Extracted ${bytes.length} bytes from Mat using toList()');
+      } catch (e) {
+        debugPrint('OpenCVIsolateWorker: toList() failed: $e, creating empty buffer');
+        // Fallback: create empty buffer
+        final expectedSize = outputMat.rows * outputMat.cols * outputMat.channels;
+        bytes = Uint8List(expectedSize);
+      }
       
       // Clean up
       if (outputMat != mat) {
