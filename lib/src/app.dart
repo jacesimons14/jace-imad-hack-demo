@@ -6,6 +6,10 @@ import 'settings/settings_controller.dart';
 import 'settings/settings_view.dart';
 import 'camera/camera_controller.dart';
 import 'camera/camera_view.dart';
+import 'ar/ar_controller.dart';
+import 'ar/ar_view.dart';
+import 'aruco/aruco_processor.dart';
+import 'aruco/aruco_camera_view.dart';
 
 /// The Widget that configures your application.
 class MyApp extends StatelessWidget {
@@ -13,10 +17,14 @@ class MyApp extends StatelessWidget {
     super.key,
     required this.settingsController,
     required this.cameraController,
+    required this.arController,
+    required this.arucoProcessor,
   });
 
   final SettingsController settingsController;
   final CameraViewController cameraController;
+  final ARController arController;
+  final ArucoProcessor arucoProcessor;
 
   @override
   Widget build(BuildContext context) {
@@ -71,15 +79,226 @@ class MyApp extends StatelessWidget {
                 switch (routeSettings.name) {
                   case SettingsView.routeName:
                     return SettingsView(controller: settingsController);
-                  default:
-                    // Default to camera view as the home page
+                  case CameraView.routeName:
                     return CameraView(controller: cameraController);
+                  case ArucoCameraView.routeName:
+                    return ArucoCameraView(
+                      cameraController: cameraController,
+                      arucoProcessor: arucoProcessor,
+                    );
+                  case ARMarkerView.routeName:
+                    return ARMarkerView(
+                      arController: arController,
+                      arucoProcessor: arucoProcessor,
+                    );
+                  default:
+                    // Default to main menu view as the home page
+                    return _MainMenuView(
+                      cameraController: cameraController,
+                      arController: arController,
+                      arucoProcessor: arucoProcessor,
+                    );
                 }
               },
             );
           },
         );
       },
+    );
+  }
+}
+
+/// Main menu view for navigating between different AR modes.
+class _MainMenuView extends StatelessWidget {
+  const _MainMenuView({
+    required this.cameraController,
+    required this.arController,
+    required this.arucoProcessor,
+  });
+
+  final CameraViewController cameraController;
+  final ARController arController;
+  final ArucoProcessor arucoProcessor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ArUco AR Demo'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.restorablePushNamed(context, SettingsView.routeName);
+            },
+          ),
+        ],
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // App title and description
+              const Icon(
+                Icons.view_in_ar,
+                size: 80,
+                color: Colors.blue,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'ArUco Marker Detection & AR',
+                style: Theme.of(context).textTheme.headlineMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Choose a mode to get started',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 48),
+
+              // Camera only mode
+              _MenuButton(
+                icon: Icons.camera_alt,
+                title: 'Camera Only',
+                description: 'Basic camera preview',
+                onTap: () {
+                  Navigator.pushNamed(context, CameraView.routeName);
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // ArUco detection mode
+              _MenuButton(
+                icon: Icons.qr_code_scanner,
+                title: 'ArUco Detection',
+                description: 'Real-time marker detection with overlay',
+                onTap: () {
+                  Navigator.pushNamed(context, ArucoCameraView.routeName);
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Full AR mode
+              _MenuButton(
+                icon: Icons.view_in_ar,
+                title: 'Full AR Mode',
+                description: 'AR rendering with 3D objects on markers',
+                onTap: () {
+                  Navigator.pushNamed(context, ARMarkerView.routeName);
+                },
+              ),
+              const SizedBox(height: 32),
+
+              // Info card
+              Card(
+                color: Colors.blue.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue.shade700),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Getting Started',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Print ArUco markers (DICT_4X4_50) to test detection. '
+                        'Default marker size is 10cm.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue.shade900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Menu button widget with icon, title, and description.
+class _MenuButton extends StatelessWidget {
+  const _MenuButton({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 32, color: Colors.blue),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey[400]),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
