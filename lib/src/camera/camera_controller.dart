@@ -248,10 +248,20 @@ class CameraViewController with ChangeNotifier {
       return;
     }
     
-    // Here you would typically handle the processed frame data
-    // For example, extract ArUco markers, update AR overlays, etc.
+    // Handle ArUco detection results
+    if (result.arucoDetectionResult != null) {
+      final arucoResult = result.arucoDetectionResult!;
+      
+      if (arucoResult.success && arucoResult.markerCount > 0) {
+        debugPrint('CameraViewController: ✓ DETECTED ${arucoResult.markerCount} ArUco markers!');
+        debugPrint('CameraViewController: Marker IDs: ${arucoResult.markerIds}');
+        
+        // Notify listeners to update UI with detection results
+        notifyListeners();
+      }
+    }
     
-    // For now, just log successful processing
+    // Log slow processing
     if (result.processingTime > 50.0) {
       debugPrint('CameraViewController: Slow frame processing: ${result.processingTime.toStringAsFixed(2)}ms');
     }

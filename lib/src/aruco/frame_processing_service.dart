@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:camera/camera.dart';
 
 import 'opencv_isolate_worker.dart';
+import 'aruco_detector.dart';
 
 /// Commands that can be sent to the isolate.
 enum IsolateCommand {
@@ -35,6 +36,7 @@ class ProcessedFrameResult {
   final bool success;
   final Uint8List? processedData;
   final String? errorMessage;
+  final ArucoDetectionResult? arucoDetectionResult;
   
   ProcessedFrameResult({
     required this.originalTimestamp,
@@ -42,6 +44,7 @@ class ProcessedFrameResult {
     required this.success,
     this.processedData,
     this.errorMessage,
+    this.arucoDetectionResult,
   });
 }
 

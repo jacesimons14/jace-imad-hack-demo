@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart' as camera;
 
 import '../settings/settings_view.dart';
+import '../aruco/frame_processing_service.dart';
 import 'camera_controller.dart';
 
 /// Displays the camera feed with AR overlay capabilities.
@@ -49,6 +50,10 @@ class _CameraViewState extends State<CameraView> {
             children: [
               // Camera preview fills entire screen
               _buildCameraPreview(),
+              
+              // ArUco marker detection overlay
+              if (widget.controller.isFrameProcessingEnabled)
+                _buildMarkerDetectionOverlay(),
               
               // Minimal overlay controls
               _buildOverlayControls(),
@@ -134,20 +139,167 @@ class _CameraViewState extends State<CameraView> {
     }
 
     final cameraController = widget.controller.cameraController!;
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(32),
-        width: 640, // Fixed width for camera preview
-        height: 480, // Fixed height for camera preview
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300, width: 2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+    
+    // Get the actual camera aspect ratio
+    final cameraAspectRatio = cameraController.value.aspectRatio;
+    
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: cameraAspectRatio,
           child: camera.CameraPreview(cameraController),
         ),
       ),
+    );
+  }
+
+  Widget _buildMarkerDetectionOverlay() {
+    return StreamBuilder<ProcessedFrameResult>(
+      stream: widget.controller.processedFrameStream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+        
+        final result = snapshot.data!;
+        
+        // Check if ArUco detection result exists and has markers
+        if (result.arucoDetectionResult == null || 
+            !result.arucoDetectionResult!.success ||
+            result.arucoDetectionResult!.markerCount == 0) {
+          return const SizedBox.shrink();
+        }
+        
+        final arucoResult = result.arucoDetectionResult!;
+        
+        return Positioned(
+          bottom: 120,
+          left: 16,
+          right: 16,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.green.withOpacity(0.9),
+                  Colors.green.withOpacity(0.7),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_circle,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '✓ Marker${arucoResult.markerCount > 1 ? 's' : ''} Detected',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${arucoResult.markerCount} marker${arucoResult.markerCount > 1 ? 's' : ''} found',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Marker IDs:',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: arucoResult.markerIds.map((id) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'ID: $id',
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Processing: ${arucoResult.processingTime.toStringAsFixed(1)}ms',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
