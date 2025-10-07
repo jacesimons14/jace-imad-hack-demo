@@ -1,15 +1,10 @@
 import 'package:flutter/material.dart';
-import 'localization/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'camera/camera_controller.dart';
+import 'localization/app_localizations.dart';
 import 'settings/settings_controller.dart';
 import 'settings/settings_view.dart';
-import 'camera/camera_controller.dart';
-import 'camera/camera_view.dart';
-import 'ar/ar_controller.dart';
-import 'ar/ar_view.dart';
-import 'aruco/aruco_processor.dart';
-import 'aruco/aruco_camera_view.dart';
 
 /// The Widget that configures your application.
 class MyApp extends StatelessWidget {
@@ -17,14 +12,10 @@ class MyApp extends StatelessWidget {
     super.key,
     required this.settingsController,
     required this.cameraController,
-    required this.arController,
-    required this.arucoProcessor,
   });
 
   final SettingsController settingsController;
   final CameraViewController cameraController;
-  final ARController arController;
-  final ArucoProcessor arucoProcessor;
 
   @override
   Widget build(BuildContext context) {
@@ -79,24 +70,11 @@ class MyApp extends StatelessWidget {
                 switch (routeSettings.name) {
                   case SettingsView.routeName:
                     return SettingsView(controller: settingsController);
-                  case CameraView.routeName:
-                    return CameraView(controller: cameraController);
-                  case ArucoCameraView.routeName:
-                    return ArucoCameraView(
-                      cameraController: cameraController,
-                      arucoProcessor: arucoProcessor,
-                    );
-                  case ARMarkerView.routeName:
-                    return ARMarkerView(
-                      arController: arController,
-                      arucoProcessor: arucoProcessor,
-                    );
+
                   default:
                     // Default to main menu view as the home page
                     return _MainMenuView(
                       cameraController: cameraController,
-                      arController: arController,
-                      arucoProcessor: arucoProcessor,
                     );
                 }
               },
@@ -112,13 +90,9 @@ class MyApp extends StatelessWidget {
 class _MainMenuView extends StatelessWidget {
   const _MainMenuView({
     required this.cameraController,
-    required this.arController,
-    required this.arucoProcessor,
   });
 
   final CameraViewController cameraController;
-  final ARController arController;
-  final ArucoProcessor arucoProcessor;
 
   @override
   Widget build(BuildContext context) {
@@ -162,40 +136,60 @@ class _MainMenuView extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 48),
-
-              // Camera only mode
               _MenuButton(
-                icon: Icons.camera_alt,
-                title: 'Camera Only',
-                description: 'Basic camera preview',
-                onTap: () {
-                  Navigator.pushNamed(context, CameraView.routeName);
+                icon: Icons.image_search,
+                title: 'Image Anchor Demo',
+                description: 'Track a reference image and show overlay',
+                onTap: () async {
+                  // Lazy import to avoid issues if AR plugin not fully configured yet
+                  // ignore: avoid_dynamic_calls
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) {
+                        // Minimal overlay example
+                        final overlay = Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 8,
+                              )
+                            ],
+                          ),
+                          child: const Text(
+                            'Hello AR',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                        );
+                        // Wire to placeholder screen for now; replace with working AR view when ready
+                        return Scaffold(
+                          appBar:
+                              AppBar(title: const Text('Image Anchor Demo')),
+                          body: const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.view_in_ar, size: 64),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'AR image tracking will appear here once native image targets are configured.',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
                 },
               ),
-              const SizedBox(height: 16),
-
-              // ArUco detection mode
-              _MenuButton(
-                icon: Icons.qr_code_scanner,
-                title: 'ArUco Detection',
-                description: 'Real-time marker detection with overlay',
-                onTap: () {
-                  Navigator.pushNamed(context, ArucoCameraView.routeName);
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Full AR mode
-              _MenuButton(
-                icon: Icons.view_in_ar,
-                title: 'Full AR Mode',
-                description: 'AR rendering with 3D objects on markers',
-                onTap: () {
-                  Navigator.pushNamed(context, ARMarkerView.routeName);
-                },
-              ),
-              const SizedBox(height: 32),
-
               // Info card
               Card(
                 color: Colors.blue.shade50,
